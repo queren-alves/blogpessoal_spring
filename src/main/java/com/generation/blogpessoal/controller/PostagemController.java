@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.generation.blogpessoal.model.Postagem;
 import com.generation.blogpessoal.repository.PostagemRepository;
+import com.generation.blogpessoal.repository.TemaRepository;
 
 import jakarta.validation.Valid;
 
@@ -30,6 +31,9 @@ public class PostagemController {
 	
 	@Autowired // injeção de dependência
 	private PostagemRepository postagemRepository;
+	
+	@Autowired 
+	private TemaRepository temaRepository;
 	
 	@GetMapping // mapeamento do método GET
 	public ResponseEntity<List<Postagem>> getAll() { // método para listar todas as postagens
@@ -50,15 +54,31 @@ public class PostagemController {
 	
 	@PostMapping // mapeamento do método POST
 	public ResponseEntity<Postagem> post(@Valid @RequestBody Postagem postagem) { // método para criar uma nova postagem (@Valid valida os campos da postagem conforme as anotações na classe Postagem) e (@RequestBody indica que o objeto postagem será recebido no corpo da requisição)
-		postagem.setId(null); // garante que o id será nulo para criar uma nova postagem (o frontend envia id 0, entao da erro no banco de dados)
-		return ResponseEntity.status(201).body(postagemRepository.save(postagem)); // salva a postagem no banco de dados e retorna a postagem com status 201 (Created)																																								
+		
+		if (temaRepository.existsById(postagem.getTema().getId())) { // verifica se o tema existe (select * from tb_temas where id = id)
+																		
+			postagem.setId(null); // garante que o id será nulo para criar uma nova postagem (o frontend envia id 0, entao da erro no banco de dados)
+			
+			return ResponseEntity.status(201).body(postagemRepository.save(postagem)); // salva a postagem no banco de dados e retorna a postagem com status 201 (Created)																																								
+		}
+		
+		throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O Tema não existe.", null); // se o tema não existir, lança exceção com status 400 (Bad Request)
 	}
 	
 	@PutMapping // mapeamento do método PUT
 	public ResponseEntity<Postagem> put(@Valid @RequestBody Postagem postagem) { // método para atualizar uma postagem existente
-		return postagemRepository.findById(postagem.getId()) // busca postagem por id (select * from tb_postagens where id = id)	 
-				.map(resposta -> ResponseEntity.status(200).body(postagemRepository.save(postagem))) // se encontrar, atualiza a postagem e retorna  postagem com status 200 (OK)																																						 																																																			
-				.orElse(ResponseEntity.notFound().build()); // se não encontrar, retorna status 404 (Not Found)
+		
+		if (postagemRepository.existsById(postagem.getId())) { // verifica se a postagem existe (select * from tb_postagens where id = id)
+			
+			if (temaRepository.existsById(postagem.getTema().getId())) { // verifica se o tema existe (select * from tb_temas where id = id)
+									
+				return ResponseEntity.status(HttpStatus.OK).body(postagemRepository.save(postagem)); // salva a postagem no banco de dados e retorna a postagem com status 201 (Created)																																								
+			}
+			
+		    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O Tema não existe.", null); // se o tema não existir, lança exceção com status 400 (Bad Request)
+		}
+	
+		return ResponseEntity.notFound().build(); // se a postagem não existir, retorna status 404 (Not Found)
 	}
 	
 	@ResponseStatus(HttpStatus.NO_CONTENT) // mapeamento do método DELETE
